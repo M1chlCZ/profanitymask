@@ -33,10 +33,10 @@ var (
 )
 
 // NormalizeTerm validates one term and returns its canonical form. The
-// canonical form is lowercase, diacritic-free, single-spaced, and folded
-// through the obfuscation map. NormalizeTerm returns ErrInvalidTerm when the
-// term is empty, shorter than 2 runes, longer than 48 runes, contains a
-// control character, or contains no letter.
+// canonical form is lowercase, diacritic-free, and single-spaced. Common
+// obfuscation characters map to letters. NormalizeTerm returns ErrInvalidTerm
+// when the term is empty, shorter than 2 runes, longer than 48 runes, contains
+// a control character, or contains no letter.
 func NormalizeTerm(term string) (string, error) {
 	normalized := normalizeText(strings.TrimSpace(term))
 	runes := []rune(normalized)
@@ -53,7 +53,7 @@ func NormalizeTerm(term string) (string, error) {
 }
 
 // NormalizeTerms validates and canonicalizes a term list. The result holds no
-// duplicates and is sorted. NormalizeTerms returns ErrTooManyTerms when the
+// duplicates in sorted order. NormalizeTerms returns ErrTooManyTerms when the
 // list holds more than 500 terms, and wraps ErrInvalidTerm when one term is
 // invalid. An empty input returns an empty, non-nil slice.
 func NormalizeTerms(terms []string) ([]string, error) {
@@ -78,9 +78,9 @@ func NormalizeTerms(terms []string) ([]string, error) {
 }
 
 // Mask replaces every whole-token and whole-phrase match of terms in text with
-// asterisks. Each masked rune becomes one '*', and the full original rune span
-// of a match is replaced, so no matched part stays readable. Mask compares
-// terms as given: pass terms from NormalizeTerm or NormalizeTerms.
+// asterisks. Each masked rune becomes one '*', and Mask replaces the full
+// original rune span of a match, so no matched part stays readable. Mask
+// compares terms as given: pass terms from NormalizeTerm or NormalizeTerms.
 func Mask(text string, terms []string) string {
 	if text == "" || len(terms) == 0 {
 		return text
@@ -101,8 +101,8 @@ func Mask(text string, terms []string) string {
 	return builder.String()
 }
 
-// Contains reports whether Mask would replace at least one match in text.
-// Contains compares terms as given: pass terms from NormalizeTerm or
+// Contains reports whether text holds at least one whole-token or whole-phrase
+// match. Contains compares terms as given: pass terms from NormalizeTerm or
 // NormalizeTerms.
 func Contains(text string, terms []string) bool {
 	if text == "" || len(terms) == 0 {
