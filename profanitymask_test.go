@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode"
 )
 
 func TestNormalizeTermCanonicalizes(t *testing.T) {
@@ -280,6 +281,67 @@ func TestContains(t *testing.T) {
 	for _, test := range cases {
 		if got := Contains(test.text, test.terms); got != test.want {
 			t.Fatalf("%s: Contains(%q) = %t, want %t", test.name, test.text, got, test.want)
+		}
+	}
+}
+
+func TestMaskConfusableHomoglyphs(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		terms []string
+		text  string
+		want  string
+	}{
+		{name: "cyrillic a", terms: []string{"kurva"}, text: "kurv\u0430", want: "*****"},
+		{name: "cyrillic mixed case", terms: []string{"shit"}, text: "\u0405h\u0456t", want: "****"},
+		{name: "cyrillic e", terms: []string{"hello"}, text: "h\u0435llo", want: "*****"},
+		{name: "cyrillic decomposed mark", terms: []string{"hello"}, text: "h\u0435\u0301llo", want: "******"},
+		{name: "cyrillic trailing mark", terms: []string{"kurva"}, text: "kurv\u0430\u0301", want: "*****\u0301"},
+		{name: "greek iota", terms: []string{"shit"}, text: "sh\u03B9t", want: "****"},
+		{name: "greek kappa", terms: []string{"kurva"}, text: "\u03BAurva", want: "*****"},
+		{name: "greek chi", terms: []string{"xax"}, text: "\u03C7a\u03C7", want: "***"},
+		{name: "greek gamma", terms: []string{"yes"}, text: "\u03B3es", want: "***"},
+		{name: "greek upsilon", terms: []string{"you"}, text: "yo\u03C5", want: "***"},
+		{name: "greek tonos", terms: []string{"logo"}, text: "l\u03CCgo", want: "****"},
+		{name: "fullwidth lowercase", terms: []string{"shit"}, text: "\uFF53\uFF48\uFF49\uFF54", want: "****"},
+		{name: "fullwidth uppercase", terms: []string{"shit"}, text: "\uFF33\uFF28\uFF29\uFF34", want: "****"},
+		{name: "fullwidth digit", terms: []string{"shit"}, text: "\uFF53\uFF48\uFF11\uFF54", want: "****"},
+		{name: "fullwidth symbol embedded", terms: []string{"shat"}, text: "\uFF53\uFF48\uFF20\uFF54", want: "****"},
+		{name: "fullwidth trailing symbol", terms: []string{"shit"}, text: "\uFF53\uFF48\uFF49\uFF54\uFF01", want: "****\uFF01"},
+		{name: "fullwidth plain digit", terms: []string{"x2x"}, text: "\uFF58\uFF12\uFF58", want: "***"},
+		{name: "homoglyph keeps boundaries", terms: []string{"shit"}, text: "shit\u0430", want: "shit\u0430"},
+		{name: "latin lookalike stays", terms: []string{"shit"}, text: "shlt", want: "shlt"},
+	}
+	for _, test := range cases {
+		if got := Mask(test.text, test.terms); got != test.want {
+			t.Fatalf("%s: Mask(%q, %v) = %q, want %q", test.name, test.text, test.terms, got, test.want)
+		}
+	}
+}
+
+func TestMaskFoldsEveryConfusableEntry(t *testing.T) {
+	t.Parallel()
+	for confusable, ascii := range confusableFold {
+		term := "x" + string(ascii) + "x"
+		text := "x" + string(confusable) + "x"
+		if got := Mask(text, []string{term}); got != "***" {
+			t.Errorf("Mask(%q, %q) = %q, want %q", text, term, got, "***")
+		}
+	}
+}
+
+func TestMaskFoldsFullwidthASCIILetters(t *testing.T) {
+	t.Parallel()
+	for current := fullwidthASCIIFirst; current <= fullwidthASCIILast; current++ {
+		ascii := unicode.ToLower(current - fullwidthASCIIGap)
+		if !unicode.IsLetter(ascii) {
+			continue
+		}
+		term := "x" + string(ascii) + "x"
+		text := "x" + string(current) + "x"
+		if got := Mask(text, []string{term}); got != "***" {
+			t.Errorf("Mask(%q, %q) = %q, want %q", text, term, got, "***")
 		}
 	}
 }
